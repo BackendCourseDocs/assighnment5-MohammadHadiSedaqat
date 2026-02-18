@@ -1,7 +1,10 @@
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Form, File, UploadFile
+from fastapi.staticfiles import StaticFiles
 import requests
 from pydantic import BaseModel, Field
 from typing import Optional
+import os
+import shutil
 
 
 class Book_Validation(BaseModel):
@@ -9,13 +12,15 @@ class Book_Validation(BaseModel):
     author: str = Field(..., min_length=3, max_length=100)
     publisher: str = Field(..., min_length=3, max_length=100)
     first_publish_year: int = Field(..., ge=0)
+    image_url: Optional[str] = None
 
 
+os.makedirs("images", exist_ok=True)
 app = FastAPI()
+app.mount("/images", StaticFiles(directory="images"), name="images")
 
 url = "https://openlibrary.org/search.json"
 params = {"q": "python", "limit": 58}
-
 response = requests.get(url, params=params)
 data = response.json()
 
@@ -36,6 +41,7 @@ for book in data.get("docs", []):
                 else "Unknown"
             ),
             "first_publish_year": book.get("first_publish_year"),
+            "image_url": None,
         }
     )
 
@@ -43,8 +49,12 @@ for book in data.get("docs", []):
 @app.get("/books")
 async def search_books(
     q: str = Query(..., min_length=3, max_length=100, description="Search query"),
-    skip: Optional[int] = Query(None, ge=0, le=100, description="Number of results to skip"),
-    limit: Optional[int] = Query(None, ge=0, le=100, description="Number of results to return")
+    skip: Optional[int] = Query(
+        None, ge=0, le=100, description="Number of results to skip"
+    ),
+    limit: Optional[int] = Query(
+        None, ge=0, le=100, description="Number of results to return"
+    ),
 ):
     query = q.lower()
 
@@ -61,7 +71,7 @@ async def search_books(
         skip = 0
     if limit is None:
         limit = len(results)
-    paginated = results[skip: skip + limit]
+    paginated = results[skip : skip + limit]
 
     return {
         "query": q,
@@ -73,13 +83,27 @@ async def search_books(
 
 
 @app.post("/books")
-async def add_book(task: Book_Validation):
-    books.append(
-        {
-            "title": task.title,
-            "author": task.author,
-            "publisher": task.publisher,
-            "first_publish_year": task.first_publish_year,
-        }
-    )
-    return task
+async def add_book(
+    title: str = Form(..., min_length=3, max_length=100),
+    author: str = Form(..., min_length=3, max_length=100),
+    publisher: str = Form(..., min_length=3, max_length=100),
+    first_publish_year: int = Form(..., ge=0),
+    image: Optional[UploadFile] = File(None),
+):
+    image_url = None
+    if image:
+        image_path = f"images/{image.filename}"
+        with open(image_path, "wb") as buffer:
+            shutil.copyfileobj(image.file, buffer)
+        image_url = f"http://127.0.0.1:8000/images/{image.filename}"
+
+    book = {
+        "title": title,
+        "author": author,
+        "publisher": publisher,
+        "first_publish_year": first_publish_year,
+        "image_url": image_url,
+    }
+
+    books.append(book)
+    return book
