@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query, Form, File, UploadFile
+from fastapi import FastAPI, Query, Form, File, UploadFile, HTTPException
 from fastapi.staticfiles import StaticFiles
 import requests
 from pydantic import BaseModel, Field
@@ -25,10 +25,12 @@ response = requests.get(url, params=params)
 data = response.json()
 
 books = []
+id_nums = 1000
 
 for book in data.get("docs", []):
     books.append(
         {
+            "id": id_nums,
             "title": book.get("title"),
             "author": (
                 book.get("author_name", ["Unknown"])[0]
@@ -44,7 +46,9 @@ for book in data.get("docs", []):
             "image_url": None,
         }
     )
+    id_nums += 1
 
+# GET: path or query
 
 @app.get("/books")
 async def search_books(
@@ -82,6 +86,7 @@ async def search_books(
     }
 
 
+# POST: Form or Json
 @app.post("/books")
 async def add_book(
     title: str = Form(..., min_length=3, max_length=100),
@@ -90,6 +95,7 @@ async def add_book(
     first_publish_year: int = Form(..., ge=0),
     image: Optional[UploadFile] = File(None),
 ):
+    global id_nums
     image_url = None
     if image:
         image_path = f"images/{image.filename}"
@@ -98,6 +104,7 @@ async def add_book(
         image_url = f"http://127.0.0.1:8000/images/{image.filename}"
 
     book = {
+        "id": id_nums,
         "title": title,
         "author": author,
         "publisher": publisher,
@@ -105,5 +112,16 @@ async def add_book(
         "image_url": image_url,
     }
 
+    id_nums += 1
     books.append(book)
     return book
+
+
+# DELETE: Path
+@app.delete("/books/{id}")
+def delete_book(id: int):
+    for i, book in enumerate(books):
+        if book["id"] == id:
+            removed_book = books.pop(i)
+            return {"message":"Book deleted", "Book": removed_book}
+    raise HTTPException(status_code=404, detail="Book not found")
