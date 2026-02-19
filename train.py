@@ -15,6 +15,7 @@ class Book_Validation(BaseModel):
     image_url: Optional[str] = None
 
 
+
 os.makedirs("images", exist_ok=True)
 app = FastAPI()
 app.mount("/images", StaticFiles(directory="images"), name="images")
@@ -48,8 +49,8 @@ for book in data.get("docs", []):
     )
     id_nums += 1
 
-# GET: path or query
 
+# GET: path or query
 @app.get("/books")
 async def search_books(
     q: str = Query(..., min_length=3, max_length=100, description="Search query"),
@@ -96,6 +97,7 @@ async def add_book(
     image: Optional[UploadFile] = File(None),
 ):
     global id_nums
+
     image_url = None
     if image:
         image_path = f"images/{image.filename}"
@@ -123,5 +125,36 @@ def delete_book(id: int):
     for i, book in enumerate(books):
         if book["id"] == id:
             removed_book = books.pop(i)
-            return {"message":"Book deleted", "Book": removed_book}
+            return {"message": "Book deleted", "Book": removed_book}
     raise HTTPException(status_code=404, detail="Book not found")
+
+
+# PUT: Path, Form
+@app.put("/books/{id}")
+def update_fully_book(
+    id: int,
+    title: str = Form(..., min_length=3, max_length=100),
+    author: str = Form(..., min_length=3, max_length=100),
+    publisher: str = Form(..., min_length=3, max_length=100),
+    first_publish_year: int = Form(..., ge=0),
+    image: Optional[UploadFile] = File(None),
+):
+
+    image_url = None
+    if image:
+        image_path = f"images/{image.filename}"
+        with open(image_path, "wb") as buffer:
+            shutil.copyfileobj(image.file, buffer)
+        image_url = f"http://127.0.0.1:8000/images/{image.filename}"
+
+    for book in books:
+        if book["id"] == id:
+            book["title"] = title
+            book["author"] = author
+            book["publisher"] = publisher
+            book["first_publish_year"] = first_publish_year
+            book["image_url"] = image_url
+            return {"message": "Book updated", "Book": book}
+
+    raise HTTPException(status_code=404, detail="Book not found")
+
