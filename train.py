@@ -158,3 +158,36 @@ def update_fully_book(
 
     raise HTTPException(status_code=404, detail="Book not found")
 
+
+# PATCH: query, Form
+@app.patch("/books/{id}")
+def update_book_part(
+    id: int,
+    title: Optional[str] = Form(..., min_length=3, max_length=100),
+    author: Optional[str] = Form(..., min_length=3, max_length=100),
+    publisher: Optional[str] = Form(..., min_length=3, max_length=100),
+    first_publish_year: Optional[int] = Form(..., ge=0),
+    image: Optional[UploadFile] = File(None),
+):
+    image_url = None
+
+    for book in books:
+        if book["id"] == id:
+            if title is not None:
+                book["title"] = title
+            if author is not None:
+                book["author"] = author
+            if publisher is not None:
+                book["publisher"] = publisher
+            if first_publish_year is not None:
+                book["first_publish_year"] = first_publish_year
+            if image:
+                image_path = f"images/{image.filename}"
+                with open(image_path, "wb") as buffer:
+                    shutil.copyfileobj(image.file, buffer)
+                image_url = f"http://127.0.0.1:8000/images/{image.filename}"
+                book["image_url"] = image_url
+
+            return {"message": "Book updated", "Book": book}
+
+    raise HTTPException(status_code=404, detail="Book not found")
