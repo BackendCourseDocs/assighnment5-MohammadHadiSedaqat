@@ -7,13 +7,12 @@ import os
 import shutil
 
 
-class Book_Validation(BaseModel):
+class BooValidation(BaseModel):
     title: str = Field(..., min_length=3, max_length=100)
     author: str = Field(..., min_length=3, max_length=100)
     publisher: str = Field(..., min_length=3, max_length=100)
     first_publish_year: int = Field(..., ge=0)
     image_url: Optional[str] = None
-
 
 
 os.makedirs("images", exist_ok=True)
